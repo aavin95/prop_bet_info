@@ -3,6 +3,38 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../../lib/supabaseClient";
+import PlayerPropChart from "../../../../components/PlayerPropChart";
+
+const POSITION_STATS = {
+    QB: [
+        { name: "Passing Yards", key: "passing_yards" },
+        { name: "Passing TDs", key: "passing_touchdowns" },
+        { name: "Passing Attempts", key: "passing_attempts" },
+        { name: "Completion %", key: "completion_percentage" },
+        { name: "Interceptions", key: "interceptions" }
+    ],
+    RB: [
+        { name: "Rushing Yards", key: "rushing_yards" },
+        { name: "Rushing TDs", key: "rushing_tds" },
+        { name: "Rushing Attempts", key: "rushing_attempts" },
+        { name: "Yards Per Carry", key: "yards_per_carry" },
+        { name: "Receptions", key: "receptions" }
+    ],
+    WR: [
+        { name: "Receiving Yards", key: "receiving_yards" },
+        { name: "Receiving TDs", key: "receiving_tds" },
+        { name: "Receptions", key: "receptions" },
+        { name: "Targets", key: "targets" },
+        { name: "Yards After Catch", key: "yac" }
+    ],
+    TE: [
+        { name: "Receiving Yards", key: "receiving_yards" },
+        { name: "Receiving TDs", key: "receiving_tds" },
+        { name: "Receptions", key: "receptions" },
+        { name: "Targets", key: "targets" },
+        { name: "Blocking Stats", key: "blocking_stats" }
+    ]
+};
 
 const PlayerStats = () => {
     const { name, id } = useParams();
@@ -10,6 +42,7 @@ const PlayerStats = () => {
     const [gameStats, setGameStats] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [selectedStat, setSelectedStat] = useState(null);
 
     useEffect(() => {
         const fetchPlayer = async () => {
@@ -28,6 +61,10 @@ const PlayerStats = () => {
                 }
 
                 setPlayer(playerData);
+                // Set default selected stat based on position
+                if (playerData.position && POSITION_STATS[playerData.position]) {
+                    setSelectedStat(POSITION_STATS[playerData.position][0].key);
+                }
 
                 const { data: gameStatsData, error: gameStatsError } = await supabase
                     .from("game_stat")
@@ -40,6 +77,7 @@ const PlayerStats = () => {
                 }
 
                 setGameStats(gameStatsData);
+                console.log(gameStatsData);
             } catch (err) {
                 console.error("Fetch player error:", err);
                 setError(err.message);
@@ -51,62 +89,83 @@ const PlayerStats = () => {
         fetchPlayer();
     }, [id]);
 
-    if (loading) return <p>Loading...</p>;
-    if (error) return <p>Error: {error}</p>;
+    const renderStatContent = (statKey) => {
+        // Filter relevant stats from gameStats
+        const statData = gameStats.map(game => ({
+            value: game[statKey],
+            date: new Date(game.date).toLocaleDateString()
+        })).filter(stat => stat.value != null);
+
+        return (
+            <div className="mt-4 p-4 bg-white rounded-lg shadow">
+                <h3 className="text-xl font-semibold mb-4">
+                    {POSITION_STATS[player.position]?.find(stat => stat.key === statKey)?.name}
+                </h3>
+                {/* Add your graph/visualization component here */}
+                <div className="h-64 bg-gray-50 rounded border">
+                    {/* Replace this with actual graph component */}
+                    <pre className="p-4">
+                        {JSON.stringify(statData, null, 2)}
+                    </pre>
+                </div>
+            </div>
+        );
+    };
+
+    if (loading) return <p className="text-center p-4">Loading...</p>;
+    if (error) return <p className="text-center p-4 text-red-500">Error: {error}</p>;
 
     return (
         <div className="w-full max-w-5xl mx-auto p-6">
             {player ? (
-                <div className="bg-white rounded-lg shadow-md p-8">
+                <div className="space-y-6">
                     {/* Player Profile Section */}
-                    <div className="flex items-center space-x-6">
-                        <img
-                            src={player.teamLogoUrl}
-                            alt={`${player.team} logo`}
-                            className="w-24 h-24 rounded-full shadow-md"
-                        />
-                        <div className="flex-grow">
-                            <h1 className="text-3xl font-bold text-gray-800">{player.name}</h1>
-                            <p className="text-lg text-gray-600">{player.position} • {player.team}</p>
-                            <span className={`px-3 py-1 mt-2 inline-block text-sm rounded-full ${player.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                {player.status}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Game Stats Overview */}
-                    <div className="mt-8 grid grid-cols-3 gap-4">
-                        {gameStats.map((stat, index) => (
-                            <div key={index} className="bg-gray-100 p-4 rounded-lg text-center">
-                                <p className="text-lg font-semibold text-gray-800">Week {stat.week}</p>
-                                <p className="text-xl font-bold text-gray-900">{stat.value}</p>
-                                <p className="text-sm text-gray-500">{stat.odds}</p>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Prop Analysis Section */}
-                    <div className="mt-10">
-                        <h2 className="text-2xl font-semibold text-gray-800 mb-4">{player.name} Pass YDs Prop</h2>
-                        <div className="flex flex-wrap items-center space-x-6 mb-6">
-                            <div className="flex flex-col items-center">
-                                <p className="text-gray-600">Consensus Line</p>
-                                <p className="text-xl font-bold text-gray-800">{player.consensusLine}</p>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <p className="text-gray-600">Projection</p>
-                                <p className="text-xl font-bold text-gray-800">{player.projection}</p>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <p className="text-gray-600">Cover Probability</p>
-                                <p className="text-lg text-gray-800">—</p>
+                    <div className="bg-white rounded-lg shadow-md p-8">
+                        <div className="flex items-center space-x-6">
+                            <img
+                                src={player.teamLogoUrl}
+                                alt={`${player.team} logo`}
+                                className="w-24 h-24 rounded-full shadow-md"
+                            />
+                            <div className="flex-grow">
+                                <h1 className="text-3xl font-bold text-black">{player.name}</h1>
+                                <p className="text-lg text-black">
+                                    {player.position} • {player.team}
+                                </p>
+                                <span className={`px-3 py-1 mt-2 inline-block text-sm rounded-full ${player.status === "Active"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-red-100 text-red-800"
+                                    }`}>
+                                    {player.status}
+                                </span>
                             </div>
                         </div>
                     </div>
+
+                    {/* Stats Navigation */}
+                    {player.position && POSITION_STATS[player.position] && (
+                        <div className="bg-white rounded-lg shadow-md p-4">
+                            <div className="flex flex-wrap gap-2">
+                                {POSITION_STATS[player.position].map((stat) => (
+                                    <button
+                                        key={stat.key}
+                                        onClick={() => setSelectedStat(stat.key)}
+                                        className={`px-4 py-2 rounded-full transition ${selectedStat === stat.key
+                                            ? "bg-blue-500 text-white"
+                                            : "bg-gray-100 text-black hover:bg-gray-200"
+                                            }`}
+                                    >
+                                        {stat.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             ) : (
-                <p className="text-gray-600 text-center">Player not found.</p>
+                <p className="text-center text-black">Player not found.</p>
             )}
+            <PlayerPropChart gameStats={gameStats} statKey={selectedStat} statName={POSITION_STATS[player.position]?.find(stat => stat.key === selectedStat)?.name} />
         </div>
     );
 };
